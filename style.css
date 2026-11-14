@@ -2587,6 +2587,8 @@ body {
   #btnReview { padding: 0 8px; }
   #btnKeyTop { display: inline-flex; padding: 0 8px; }
   #btnWallet { display: inline-flex; padding: 0 8px; }
+  #btnSync { display: inline-flex; padding: 0 8px; }
+  .sync-pop { right: 8px; width: calc(100vw - 16px); max-width: 320px; }
   .wallet-pop { right: 8px; width: calc(100vw - 16px); max-width: 300px; }
   #btnNew { padding: 0 10px; font-size: 13px; }
   .main { padding: 14px; }

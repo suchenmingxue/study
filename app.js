@@ -2113,7 +2113,8 @@
       top.title = getApiKey()
         ? "API Key 已设置，点这里可以修改"
         : "还没填 API Key，点这里填";
-      top.textContent = getApiKey() ? "🔑" : "🔑 未设置";
+      // 手机上「未设置」三个字会把顶栏挤爆，窄屏只留图标
+      top.innerHTML = getApiKey() ? "🔑" : '🔑<span class="hide-narrow"> 未设置</span>';
     }
   }
 
@@ -4310,7 +4311,15 @@
       });
       if (!cands.length) return "";
 
+      var sizeOf = function (g) {
+        var f = (g.files && g.files[GIST_FILE]) || {};
+        return Number(f.size) || 0;
+      };
+
+      // 先挑数据多的：万一之前误建过空壳，别又连到空壳上去
       cands.sort(function (a, b) {
+        var d = sizeOf(b) - sizeOf(a);
+        if (d) return d;
         return new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime();
       });
 
