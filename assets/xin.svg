@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 250" width="200" height="250">
+  <defs>
+    <linearGradient id="xg" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0%" stop-color="#ff8a97"/>
+      <stop offset="55%" stop-color="#ef4d5f"/>
+      <stop offset="100%" stop-color="#8c1b2b"/>
+    </linearGradient>
+    <radialGradient id="xglow" cx="0.5" cy="0.35" r="0.62">
+      <stop offset="0%" stop-color="#ef4d5f" stop-opacity="0.34"/>
+      <stop offset="100%" stop-color="#ef4d5f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <ellipse cx="100" cy="92" rx="92" ry="92" fill="url(#xglow)"/>
+
+  <!-- 月牙 -->
+  <path d="M160 24a30 30 0 1 0 20 54 25 25 0 1 1-20-54z" fill="#ef4d5f" opacity="0.5"/>
+
+  <!-- 狐耳（向外斜） -->
+  <path d="M76 62C60 42 48 20 54 6c18 9 34 30 42 56z" fill="url(#xg)"/>
+  <path d="M124 62c16-20 28-42 22-56-18 9-34 30-42 56z" fill="url(#xg)"/>
+
+  <!-- 半身剪影 -->
+  <path d="M100 46c-16 0-28 12-28 27 0 9 4 17 11 22-25 8-41 30-45 62v24h124v-24c-4-32-20-54-45-62 7-5 11-13 11-22 0-15-12-27-28-27z" fill="url(#xg)"/>
+
+  <!-- 狐火 -->
+  <circle cx="40" cy="152" r="3.6" fill="#ff8a97" opacity="0.75"/>
+  <circle cx="166" cy="134" r="2.6" fill="#ff8a97" opacity="0.55"/>
+  <circle cx="28" cy="198" r="2" fill="#ef4d5f" opacity="0.45"/>
+  <circle cx="178" cy="182" r="2.2" fill="#ef4d5f" opacity="0.4"/>
+</svg>

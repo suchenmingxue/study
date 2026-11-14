@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>苏尘茗雪的神秘小网站</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%92%3C/text%3E%3C/svg%3E" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#0b1018" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="学习小站" />
+  <link rel="apple-touch-icon" href="assets/icon-192.png" />
+  <link rel="stylesheet" href="vendor/katex/katex.min.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand__icon">🌙</span>
+      <span class="brand__text">苏尘茗雪的神秘小网站</span>
+    </div>
+
+    <nav class="tabs" id="tabs">
+      <button type="button" class="tab is-active" data-view="book">📒 <span class="tab__label">错题本</span></button>
+      <button type="button" class="tab" data-view="summary">🧠 <span class="tab__label">图片总结</span></button>
+      <button type="button" class="tab" data-view="memo">📝 <span class="tab__label">备忘录</span></button>
+    </nav>
+
+    <div class="search-wrap" data-book-only>
+      <input id="search" type="search" placeholder="搜题目 / 答案 / 标签 / 备注…" autocomplete="off" />
+    </div>
+
+    <div class="topbar__actions">
+      <button id="btnFilter" class="btn btn--ghost only-mobile" title="筛选学科 / 标签">☰</button>
+      <button id="btnReview" class="btn btn--ai only-book" title="复习错题">🎯 <span class="hide-narrow">复习</span><span class="badge" id="reviewBadge" hidden>0</span></button>
+      <button id="btnExport" class="btn btn--ghost" data-book-only title="导出备份">导出</button>
+      <button id="btnImport" class="btn btn--ghost" data-book-only title="从备份导入">导入</button>
+      <button id="btnNew" class="btn btn--red" data-book-only>＋<span class="hide-narrow"> 记一道</span></button>
+      <button id="btnKeyTop" class="btn btn--ghost" title="设置智谱 API Key">🔑</button>
+      <button id="btnWallet" class="btn btn--ghost" title="用量与余额">💰</button>
+      <button id="btnSync" class="btn btn--ghost" title="多设备同步">☁️</button>
+    </div>
+
+    <!-- 同步面板 -->
+    <div class="sync-pop" id="syncPop" hidden>
+      <div class="sync-head">
+        <b>多设备同步</b>
+        <span class="sync-state" id="syncState">未连接</span>
+      </div>
+
+      <div class="sync-note">
+        用一个你的私有 Gist 存数据，电脑和手机打开同一个网址，就能看到同一本错题本。
+      </div>
+
+      <div class="sync-field" id="syncSetup">
+        <input id="syncToken" type="password" placeholder="粘贴 GitHub token" autocomplete="off" />
+        <button type="button" class="btn btn--primary btn--tiny" id="syncConnect">连接</button>
+      </div>
+
+      <div class="sync-actions" id="syncActions" hidden>
+        <button type="button" class="btn btn--tiny btn--ai" id="syncNow">🔄 同步</button>
+        <button type="button" class="btn btn--tiny" id="syncOff">断开</button>
+      </div>
+
+      <div class="sync-status" id="syncStatus"></div>
+
+      <div class="sync-foot">
+        <a href="https://github.com/settings/tokens/new?scopes=gist&amp;description=fish-study" target="_blank" rel="noopener">去创建 token →</a>
+        <span class="sync-tip">只勾 gist 权限</span>
+      </div>
+    </div>
+
+    <!-- 余额面板 -->
+    <div class="wallet-pop" id="walletPop" hidden>
+      <div class="wallet-row"><span>本站累计花费</span><b id="walletSpent">¥0.00</b></div>
+      <div class="wallet-row"><span>估算余额</span><b id="walletLeft">没填</b></div>
+
+      <div class="wallet-note" id="walletNote">
+        去控制台看一眼余额，填一次，之后鱼自己往下减
+      </div>
+
+      <div class="wallet-form">
+        <input id="walletInput" type="number" step="0.01" min="0" placeholder="如 10.00" />
+        <button type="button" class="btn btn--primary btn--tiny" id="walletSave">保存</button>
+      </div>
+
+      <div class="wallet-foot">
+        <a href="https://bigmodel.cn/finance/overview" target="_blank" rel="noopener">打开控制台 →</a>
+        <button type="button" class="wallet-reset" id="walletReset">清零记账</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout" id="view-book">
+    <!-- 侧栏 -->
+    <aside class="sidebar">
+      <div class="side-block">
+        <h3 class="side-title">学科</h3>
+        <ul class="subject-list" id="subjectList"></ul>
+      </div>
+
+      <div class="side-block">
+        <h3 class="side-title">标签</h3>
+        <div class="tag-cloud" id="tagCloud"></div>
+      </div>
+
+      <div class="side-block side-block--stats">
+        <div class="stat-row"><span>共</span><b id="statTotal">0</b><span>道</span></div>
+        <div class="stat-hint" id="statHint">数据只存在这台电脑上</div>
+
+        <button type="button" class="stat-store" id="statStore" title="看看占了多少地方">
+          💾 <span id="storeSize">算一下…</span>
+        </button>
+      </div>
+
+      <!-- 心月狐：竖版立绘轮换 + 两张小贴纸 -->
+      <div class="side-art side-art--photo" aria-hidden="true">
+        <div class="art-stack art-stack--side">
+          <img class="art-stack__main" data-rot="xin" src="assets/xin-art1.webp" alt="" loading="lazy"
+               onerror="if(!this.dataset.f){this.dataset.f=1;this.src='assets/xin.svg';}" />
+          <img class="art-stack__mini art-stack__mini--l" data-pick="xin" src="assets/xin-03.webp"
+               alt="" loading="lazy" />
+          <img class="art-stack__mini art-stack__mini--r" data-pick="xin" src="assets/xin-12.webp"
+               alt="" loading="lazy" />
+        </div>
+      </div>
+    </aside>
+
+    <!-- 窄屏时盖住主列表的遮罩 -->
+    <div class="side-mask" id="sideMask"></div>
+
+    <!-- 主列表 -->
+    <main class="main">
+      <div class="list" id="list"></div>
+
+      <div class="empty" id="empty">
+        <img class="empty__art" src="assets/chibi2.webp" alt="" aria-hidden="true" loading="lazy" />
+        <div class="empty__halo"><div class="empty__icon">🐟</div></div>
+        <h2>还没有错题</h2>
+        <p>点右上角「记一道」，把错题收进来吧</p>
+        <button type="button" class="btn btn--primary empty__btn" id="emptyNew">＋ 记第一道</button>
+      </div>
+    </main>
+  </div>
+
+  <!-- 图片总结 -->
+  <section class="summary" id="view-summary" hidden>
+    <div class="summary__inner">
+      <!-- 左边：放图 -->
+      <div class="sum-panel">
+        <div class="sum-drop" id="sumDrop">
+          <input type="file" id="sumImage" accept="image/*" multiple hidden />
+          <div class="sum-drop__hint" id="sumHint">
+            <span class="sum-drop__icon">🖼️</span>
+            <span class="sum-drop__main">拖进来 / 点此选择 / Ctrl+V 粘贴</span>
+            <span class="sum-drop__sub">图片最多 <b id="sumMaxTip">50</b> 张；<b>PDF / Word / PPT / txt</b> 也直接拖进来</span>
+          </div>
+        </div>
+
+        <div class="sum-docrow">
+          <button type="button" class="btn btn--tiny btn--doc" id="sumDoc">
+            📄 导入文档（PDF / Word / PPT / txt）
+          </button>
+          <input type="file" id="sumDocInput" accept=".pdf,.docx,.pptx,.txt,.md,application/pdf" multiple hidden />
+        </div>
+
+        <div class="sum-thumbs" id="sumThumbs"></div>
+
+        <div class="sum-actions">
+          <button type="button" class="btn btn--primary" id="sumRun">🧠 开始总结</button>
+          <button type="button" class="btn btn--stop" id="sumStop" hidden>⏹ 停下</button>
+          <button type="button" class="btn btn--ghost" id="sumClear">清空</button>
+        </div>
+
+        <div class="sum-draft" id="sumDraftBar" hidden>
+          <span class="sum-draft__text" id="sumDraftText"></span>
+          <span class="sum-draft__acts">
+            <button type="button" class="btn btn--tiny btn--primary" id="sumResume">接着跑</button>
+            <button type="button" class="btn btn--tiny btn--ghost" id="sumGiveUp">不要了</button>
+          </span>
+        </div>
+
+        <div class="ocr-status" id="sumStatus"></div>
+
+        <div class="sum-saved">
+          <h3 class="sum-saved__title">📚 存过的总结 <span id="sumSavedCount">0</span></h3>
+
+          <input id="sumSearch" type="search" class="sum-saved__search" placeholder="搜存过的总结…"
+                 autocomplete="off" hidden />
+
+          <div class="sum-saved__bar" id="sumSavedBar" hidden>
+            <button type="button" class="btn btn--tiny" id="sumSelectAll">全选</button>
+            <button type="button" class="btn btn--tiny btn--pink" id="sumExport">🖨️ 导出选中</button>
+          </div>
+
+          <div class="sum-saved__list" id="sumSavedList"></div>
+        </div>
+
+        <!-- 清宵：立绘卡 + 两张小贴纸 -->
+        <div class="side-art side-art--wide side-art--photo" aria-hidden="true">
+          <div class="art-stack">
+            <img class="art-stack__main" data-rot="qx" src="assets/qx-key.webp" alt="" loading="lazy"
+                 onerror="if(!this.dataset.f){this.dataset.f=1;this.src='assets/qingxiao.svg';}" />
+            <img class="art-stack__mini art-stack__mini--l" data-pick="qx" src="assets/qx-melon.webp"
+                 alt="" loading="lazy" />
+            <img class="art-stack__mini art-stack__mini--r" data-pick="qx" src="assets/qx-thumb.webp"
+                 alt="" loading="lazy" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 右边：结果 -->
+      <div class="sum-panel sum-panel--result">
+        <div class="sum-toolbar" id="sumToolbar" hidden>
+          <button type="button" class="btn btn--tiny btn--pink" id="sumSave">💾 保存这次总结</button>
+          <button type="button" class="btn btn--tiny" id="sumToBook">📒 存进错题本</button>
+          <button type="button" class="btn btn--tiny" id="sumCopy">📋 复制文字</button>
+          <button type="button" class="btn btn--tiny" id="sumEdit" hidden>✏️ 改字</button>
+          <button type="button" class="btn btn--tiny" id="sumRetry" hidden>🔁 重跑没读出来的</button>
+        </div>
+
+        <div class="sum-empty" id="sumEmpty">
+          <img class="sum-empty__bg" src="assets/qx-ice.webp" alt="" aria-hidden="true" loading="lazy" />
+          <img class="sum-empty__art" data-pick="qx" src="assets/qx-wow.webp" alt="" aria-hidden="true" loading="lazy" />
+          <div class="empty__icon">🧠</div>
+          <h2>还没有总结</h2>
+          <p>放几张课件截图进来，鱼给你提炼要点</p>
+        </div>
+
+        <div class="sum-result" id="sumResult" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 备忘录 -->
+  <section class="memo" id="view-memo" hidden>
+    <div class="memo__bar">
+      <input id="memoSearch" type="search" placeholder="搜标题或内容…" autocomplete="off" />
+      <div class="memo-filter" id="memoFilter">
+        <button type="button" class="memo-filter__tab is-active" data-filter="all">全部</button>
+        <button type="button" class="memo-filter__tab" data-filter="todo">待办</button>
+        <button type="button" class="memo-filter__tab" data-filter="done">已完成</button>
+      </div>
+      <button type="button" class="btn btn--pink" id="memoNew">＋ 写一条</button>
+    </div>
+
+    <div class="memo__inner">
+      <div class="memo-list" id="memoList"></div>
+
+      <div class="memo-empty" id="memoEmpty">
+        <img class="memo-empty__bg" src="assets/lili-forest.webp" alt="" aria-hidden="true" loading="lazy" />
+        <img class="memo-empty__art" data-pick="lili" src="assets/lili-heart.webp" alt="" aria-hidden="true" loading="lazy" />
+        <div class="memo-empty__halo"><div class="memo-empty__icon">📝</div></div>
+        <h2>还没有备忘录</h2>
+        <p>想到什么随手记一条，会跟错题一起同步</p>
+        <button type="button" class="btn btn--pink memo-empty__btn" id="memoEmptyNew">＋ 写第一条</button>
+      </div>
+
+      <!-- 莉莉：立绘卡 + 两张小贴纸 -->
+      <div class="corner-stack" aria-hidden="true">
+        <div class="art-stack">
+          <img class="art-stack__main" data-rot="lili" src="assets/lili-key.webp" alt="" loading="lazy" />
+          <img class="art-stack__mini art-stack__mini--l" data-pick="lili" src="assets/lili-melon.webp"
+               alt="" loading="lazy" />
+          <img class="art-stack__mini art-stack__mini--r" data-pick="lili" src="assets/lili-peace.webp"
+               alt="" loading="lazy" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 备忘录编辑抽屉 -->
+  <div class="drawer" id="memoDrawer" aria-hidden="true">
+    <div class="drawer__panel drawer__panel--memo">
+      <div class="drawer__head">
+        <h2 id="memoDrawerTitle">写一条备忘录</h2>
+        <button type="button" class="icon-btn" id="memoClose" title="关闭">✕</button>
+      </div>
+
+      <div class="form">
+        <div class="field">
+          <label class="label" for="memoTitle">标题</label>
+          <input id="memoTitle" type="text" placeholder="一句话概括（可以空着）" autocomplete="off" />
+        </div>
+
+        <div class="field">
+          <label class="label" for="memoWhen">时间 <span class="hint">这件事定在什么时候</span></label>
+          <div class="when-row">
+            <input id="memoWhen" type="datetime-local" />
+            <button type="button" class="btn btn--tiny" id="memoWhenNow">现在</button>
+            <button type="button" class="btn btn--tiny" id="memoWhenClear">清空</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" for="memoBody">内容</label>
+          <textarea id="memoBody" rows="12" placeholder="随手写点什么…"></textarea>
+        </div>
+
+        <div class="memo-meta" id="memoMeta"></div>
+      </div>
+
+      <div class="drawer__foot">
+        <button type="button" class="btn btn--danger" id="memoDelete" hidden>删除</button>
+        <button type="button" class="btn btn--ghost" id="memoCancel">取消</button>
+        <button type="button" class="btn btn--pink" id="memoSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑抽屉 -->
+  <div class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer__panel">
+      <div class="drawer__head">
+        <h2 id="drawerTitle">记一道错题</h2>
+        <button type="button" class="icon-btn" id="btnClose" title="关闭">✕</button>
+      </div>
+
+      <form class="form" id="form">
+        <input type="hidden" id="fId" />
+
+        <!-- 图片区 -->
+        <div class="field">
+          <label class="label">原题图片</label>
+          <div class="drop" id="drop">
+            <input type="file" id="fImage" accept="image/*" hidden />
+            <div class="drop__hint" id="dropHint">
+              <span class="drop__icon">🖼️</span>
+              <span>拖进来 / 点此选择 / 直接 Ctrl+V 粘贴截图</span>
+            </div>
+            <img id="preview" class="preview" hidden alt="原题预览" />
+          </div>
+          <div class="drop-actions">
+            <button type="button" class="btn btn--tiny" id="btnClearImage" hidden>移除图片</button>
+            <button type="button" class="btn btn--tiny btn--ai" id="btnOcr">🤖 自动识别</button>
+            <button type="button" class="btn btn--tiny" id="btnSetKey">🔑 Key</button>
+          </div>
+          <div class="ocr-status" id="ocrStatus"></div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label class="label" for="fSubject">学科</label>
+            <select id="fSubject"></select>
+          </div>
+          <div class="field">
+            <label class="label" for="fTags">标签（逗号分隔）</label>
+            <input id="fTags" type="text" placeholder="如：极限, 罗尔定理" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" for="fTitle">题目 <span class="hint">支持 $公式$</span></label>
+          <textarea id="fTitle" rows="3" placeholder="把题目打下来，或从 SimpleTex 粘贴 LaTeX"></textarea>
+        </div>
+
+        <div class="field">
+          <label class="label" for="fAnswer">答案</label>
+          <textarea id="fAnswer" rows="3" placeholder="正确答案"></textarea>
+        </div>
+
+        <div class="field">
+          <label class="label" for="fNote">解析 / 我为什么错</label>
+          <textarea id="fNote" rows="3" placeholder="思路、坑在哪、下次注意什么"></textarea>
+        </div>
+
+        <div class="field">
+          <label class="label">实时预览</label>
+          <div class="preview-box" id="formPreview">（上面写的内容会在这里渲染公式）</div>
+        </div>
+
+        <div class="drawer__foot">
+          <button type="button" class="btn btn--ghost" id="btnCancel">取消</button>
+          <button type="submit" class="btn btn--primary">保存</button>
+        </div>
+      </form>
+
+      <!-- 心月狐（角落贴纸） -->
+      <div class="drawer-art" aria-hidden="true">
+        <img src="assets/chibi2.webp" alt=""
+             onerror="if(!this.dataset.f){this.dataset.f=1;this.src='assets/xin.svg';}" />
+      </div>
+    </div>
+  </div>
+
+  <!-- 详情查看 -->
+  <div class="drawer" id="viewer" aria-hidden="true">
+    <div class="drawer__panel">
+      <div class="drawer__head">
+        <h2>看题</h2>
+        <button type="button" class="icon-btn" id="btnViewClose" title="关闭">✕</button>
+      </div>
+      <div class="viewer" id="viewerBody"></div>
+      <div class="drawer__foot">
+        <button type="button" class="btn btn--ghost" id="btnViewDelete">删除</button>
+        <button type="button" class="btn btn--primary" id="btnViewEdit">编辑</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 复习模式 -->
+  <div class="review" id="review" aria-hidden="true">
+    <div class="review__head">
+      <h2>🎯 复习</h2>
+      <span class="review__prog" id="reviewProg"></span>
+      <button type="button" class="icon-btn" id="reviewClose" title="关闭">✕</button>
+    </div>
+    <div class="review__body" id="reviewBody"></div>
+    <div class="review__foot" id="reviewFoot"></div>
+  </div>
+
+  <!-- 提示 -->
+  <div class="toast" id="toast"></div>
+
+  <!-- 打印专用区（平时不显示） -->
+  <div id="printArea"></div>
+
+  <script defer src="vendor/katex/katex.min.js"></script>
+  <script defer src="vendor/katex/auto-render.min.js"></script>
+  <script defer src="vendor/pdfjs/pdf.min.js"></script>
+  <script defer src="app.js"></script>
+</body>
+</html>
