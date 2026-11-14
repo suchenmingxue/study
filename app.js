@@ -4297,9 +4297,40 @@
     };
   }
 
+  // 先看看这个账号下有没有已经建过的同步 Gist。
+  // 不然每台设备各建一个，两台各存各的，等于没同步。
+  async function findGist() {
+    try {
+      var list = await ghFetch("/gists?per_page=100");
+      if (!Array.isArray(list)) return "";
+
+      var cands = list.filter(function (g) {
+        var f = (g && g.files) || {};
+        return Object.prototype.hasOwnProperty.call(f, GIST_FILE);
+      });
+      if (!cands.length) return "";
+
+      cands.sort(function (a, b) {
+        return new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime();
+      });
+
+      return cands[0].id || "";
+    } catch (e) {
+      return "";   // 列不出来就当没有，老老实实新建
+    }
+  }
+
   async function ensureGist() {
     var s = loadSync();
     if (s.gistId) return s.gistId;
+
+    var found = await findGist();
+    if (found) {
+      s.gistId = found;
+      saveSync(s);
+      updateSyncUI();
+      return found;
+    }
 
     var files = {};
     files[GIST_FILE] = { content: JSON.stringify(emptyPayload()) };
