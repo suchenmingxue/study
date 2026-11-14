@@ -1,5 +1,5 @@
 /* 学习小站的后台缓存：断网也能打开，图片和字体看到过就留着 */
-var CACHE = "fish-study-v3";
+var CACHE = "fish-study-v4";
 
 var CORE = [
   "./",
@@ -57,15 +57,20 @@ self.addEventListener("fetch", function (e) {
     return;
   }
 
+  // 站内资源：先要最新的，网络不行了才退回缓存。
+  // 以前是先给旧的、后台再更新，结果改一次代码要刷两遍才生效。
   e.respondWith(
-    caches.open(CACHE).then(function (cache) {
-      return cache.match(req, { ignoreSearch: true }).then(function (hit) {
-        var net = fetch(req).then(function (res) {
-          if (res && res.ok) cache.put(req, res.clone()).catch(function () {});
-          return res;
-        }).catch(function () { return hit; });
-
-        return hit || net;
+    fetch(req).then(function (res) {
+      if (res && res.ok) {
+        var copy = res.clone();
+        caches.open(CACHE).then(function (c) {
+          c.put(req, copy).catch(function () {});
+        });
+      }
+      return res;
+    }).catch(function () {
+      return caches.match(req, { ignoreSearch: true }).then(function (hit) {
+        return hit || caches.match("./index.html");
       });
     })
   );
