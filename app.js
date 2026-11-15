@@ -445,6 +445,7 @@
         var h = hashOf(it.url);
         if (sum.hashes[h]) { dup++; return; }
         sum.hashes[h] = 1;
+        sum.docImgs[sum.images.length] = 1;   // 记一笔：这页是文档里的扫描页
         sum.images.push(it.url);
         sum.thumbs.push(it.thumb || "");
         added++;
@@ -1849,6 +1850,38 @@
       e.target.value = "";
     });
 
+    // 文档分节粒度：每页 / 每章 / 整份
+    var granEl = $("sumGran");
+    if (granEl) {
+      granEl.value = sum.gran;
+
+      granEl.addEventListener("change", function () {
+        var v = granEl.value;
+
+        if (sum.busy) {
+          granEl.value = sum.gran;
+          toast("正在跑，跑完再换分节方式");
+          return;
+        }
+
+        if ((sum.sections.length || sum.done.length) && !resetProgressIfNeeded("分节方式")) {
+          granEl.value = sum.gran;
+          return;
+        }
+
+        sum.gran = v;
+
+        var txt = granEl.options[granEl.selectedIndex].text;
+        var hint = v === "page"
+          ? "一页一节，逐页总结"
+          : v === "chapter"
+            ? "认出「第 X 章」就按章合一节，认不出来按每 6 页一节"
+            : "整份合成一大段总结，内容多会写长（必要时分几块）";
+
+        sumStatus("分节改成「" + txt + "」：" + hint + "。点「开始总结」开跑", "ok");
+      });
+    }
+
     // 总结：粘贴
     document.addEventListener("paste", function (e) {
       if (state.view !== "summary") return;
@@ -2584,11 +2617,35 @@
     "7. 如果内容明显不是学习相关（闲聊、广告、纯装饰），title 写「不是学习内容」，summary 说明一下，其余字段给空数组。"
   ].join("\n");
 
+  // 按章 / 整份一起总结时用这一套：允许写长，别硬压成一页
+  var SUMMARY_SYSTEM_LONG = [
+    "你是学习助手。用户会给你一段从课本或课件里 OCR 出来的文字，可能横跨很多页，里面夹着 LaTeX 公式。",
+    "请读懂它，然后只输出一个 JSON 对象，不要写任何解释，不要加 ```json 围栏。JSON 结构是：",
+    "{",
+    '  "title": "这一段讲什么，20 个字以内",',
+    '  "summary": "这段的整体脉络，三四句话，说清从哪讲到哪",',
+    '  "points": ["核心知识点，每条一句话", "..."],',
+    '  "formulas": ["关键公式的 LaTeX 源码", "..."],',
+    '  "quiz": [{"q": "自测题", "a": "答案和解析，两三句话"}]',
+    "}",
+    "要求：",
+    "1. 内容多就写长，**不要为了压成一页而丢东西**；points 给 6~15 条，把这一段的定义、定理、推导思路、例题类型都覆盖到；",
+    "2. formulas 给 0~15 条，每条必须是能直接编译的 LaTeX 源码（例如 \\frac{f(b)-f(a)}{b-a}），不要写中文描述；原文没有公式就给空数组；",
+    "3. quiz 给 1~4 条，考上面讲的知识点；",
+    "4. points 和 quiz 里的公式必须用 $ 包起来（例如 得到 $f'(\\xi)=0$），不要写裸的 \\frac{}{}；",
+    "5. 全部用中文；",
+    "6. 如果原文里出现「第 X 章 / 第 X 节」这类标题，保留在 title 或 points 里，方便对回原书；",
+    "7. 如果内容明显不是学习相关（闲聊、广告、纯装饰），title 写「不是学习内容」，summary 说明一下，其余字段给空数组。"
+  ].join("\n");
+
   var sum = {
     images: [],
     thumbs: [],     // 和 images 一一对应的小图，同步用
     texts: [],      // 从文档里抽出来的文字段（{label, text}），不用走 OCR
     hashes: {},     // 指纹，防同一张图放两遍
+    docImgs: {},    // 哪些图是文档里的「扫描页」（按 images 的下标记）
+    pageText: {},   // 扫描页识别出来的文字缓存，按章/整份合并时要先用它
+    gran: "page",   // 文档分节粒度：page / chapter / whole
     busy: false,
     stop: false,
     reading: false, // 正在解 PDF，这时候停下只停读
@@ -2892,12 +2949,14 @@
     throw lastErr || new Error("拆分没成");
   }
 
-  async function chatSummary(text, key) {
+  async function chatSummary(text, key, opts) {
+    var sys = (opts && opts.long) ? SUMMARY_SYSTEM_LONG : SUMMARY_SYSTEM;
+    var maxTok = (opts && opts.maxTokens) || 3000;
     var lastErr = null;
 
     for (var i = 0; i < CHAT_MODELS.length; i++) {
       try {
-        return await chatOnce(CHAT_MODELS[i], text, key);
+        return await chatOnce(CHAT_MODELS[i], text, key, sys, maxTok);
       } catch (err) {
         lastErr = err;
       }
@@ -3098,6 +3157,220 @@
     updateSaveBtn();
   }
 
+  /* ---------- 文档分节：每页 / 每章 / 整份 ---------- */
+
+  // 「《x》第 12 页」-> 12
+  function pageNoOf(label) {
+    var m = /第\s*(\d+)\s*页/.exec(label || "");
+    return m ? Number(m[1]) : 0;
+  }
+
+  // 章标题长什么样：第3章 / 第三章 / 一、xxx / 3.1 xxx / Chapter 3 / §3
+  var CHAP_HEAD = /^\s*(?:第\s*[0-9一二三四五六七八九十百零〇]{1,4}\s*[章节講讲篇卷部]|chapter\s*\d+|§\s*\d+|[一二三四五六七八九十]{1,3}\s*[、.．]\s*\S|\d+\.\d+\s+\S)/i;
+
+  // 把文档页收成一串按页排好的 [{page,label,text}]；扫描页先 OCR 才有字
+  async function collectDocPages(key) {
+    if (sum.texts.length) {
+      var pages = sum.texts.map(function (t) {
+        return { page: pageNoOf(t.label), label: t.label || "文档", text: t.text || "" };
+      }).sort(function (a, b) { return (a.page || 1e9) - (b.page || 1e9); });
+
+      return { pages: pages, scanned: false };
+    }
+
+    var idxs = [];
+    Object.keys(sum.docImgs).forEach(function (k) { idxs.push(Number(k)); });
+    idxs.sort(function (a, b) { return a - b; });
+
+    var out = [];
+
+    for (var n = 0; n < idxs.length; n++) {
+      if (sum.stop) return null;
+
+      var i = idxs[n];
+      var text = sum.pageText[i];
+
+      if (text == null) {
+        sumStatus("先把扫描页认成字… " + (n + 1) + "/" + idxs.length);
+        try { text = await ocrOne(sum.images[i], key); } catch (e) { text = ""; }
+        sum.pageText[i] = text;
+      }
+
+      out.push({ page: n + 1, label: "第 " + (n + 1) + " 页", text: text || "" });
+    }
+
+    return { pages: out, scanned: true };
+  }
+
+  // 按章切：把所有页拼起来，按「行」找章标题（第 X 章 / 一、 / 3.1 …）；
+  // 一章太长再切成几块；一个章标题都认不出来就退回「每 N 页一节」
+  function chapterGroups(pages, fallbackSize) {
+    var lines = [];
+
+    pages.forEach(function (p) {
+      String(p.text || "").split(/\n+/).forEach(function (ln) {
+        var s = ln.trim();
+        if (s) lines.push({ text: s, page: p.page });
+      });
+    });
+
+    var marks = [];
+    lines.forEach(function (ln, i) {
+      if (ln.text.length <= 42 && CHAP_HEAD.test(ln.text)) marks.push(i);
+    });
+
+    if (marks.length >= 2) {
+      var groups = [];
+
+      for (var k = 0; k < marks.length; k++) {
+        var a = marks[k];
+        var b = (k + 1 < marks.length) ? marks[k + 1] : lines.length;
+        var title = lines[a].text;
+        var body = lines.slice(a, b).map(function (x) { return x.text; }).join("\n").trim();
+
+        if (!body) continue;
+
+        var chunks = chunkText(body, 7000) || [];
+        chunks.forEach(function (t, i) {
+          groups.push({
+            label: chunks.length > 1 ? title + "（" + (i + 1) + "/" + chunks.length + "）" : title,
+            text: t
+          });
+        });
+      }
+
+      if (groups.length) return { groups: groups, fallback: false };
+    }
+
+    // 一个章标题都没认出来：按页数硬分组
+    var noPage = pages.every(function (p) { return !p.page; });
+    var step = fallbackSize || 6;
+    var groups2 = [];
+
+    for (var s2 = 0; s2 < pages.length; s2 += step) {
+      var chunk2 = pages.slice(s2, s2 + step);
+      var text2 = chunk2.map(function (x) { return x.text; }).filter(Boolean).join("\n\n").trim();
+
+      if (!text2) continue;
+
+      var from = chunk2[0].page;
+      var to = chunk2[chunk2.length - 1].page;
+      var label2;
+
+      if (noPage) {
+        var a2 = s2 + 1;
+        var b2 = s2 + chunk2.length;
+        label2 = (a2 === b2) ? "第 " + a2 + " 段" : "第 " + a2 + "–" + b2 + " 段";
+      } else {
+        label2 = (!from || from === to) ? "第 " + (from || 1) + " 页" : "第 " + from + "–" + to + " 页";
+      }
+
+      groups2.push({ label: label2, text: text2 });
+    }
+
+    return { groups: groups2, fallback: true };
+  }
+
+  // 整份一起：合成一大段，超长就切成几大块（每块仍是一整份的一部分，不是一页）
+  function wholeGroups(pages) {
+    var all = pages.map(function (p) { return p.text; }).filter(Boolean).join("\n\n");
+    var parts = chunkText(all, 7000) || [];
+
+    return {
+      groups: parts.map(function (t, i) {
+        return {
+          label: parts.length > 1 ? "全文 " + (i + 1) + "/" + parts.length : "全文",
+          text: t
+        };
+      }),
+      fallback: false
+    };
+  }
+
+  // 按所选粒度跑文档；顺带把单独放进去的照片也按张跑掉
+  async function runDocGrouped(gran, key) {
+    var packed = await collectDocPages(key);
+    if (!packed || !packed.pages.length) return { total: 0, fallback: false };
+    if (sum.stop) return { total: 0, fallback: false };
+
+    var built = gran === "whole" ? wholeGroups(packed.pages) : chapterGroups(packed.pages, 6);
+    var groups = built.groups;
+
+    var photos = [];
+    sum.images.forEach(function (src, i) { if (!sum.docImgs[i]) photos.push(i); });
+
+    var total = groups.length + photos.length;
+    var cursor = 0;
+
+    for (var g = 0; g < groups.length; g++) {
+      if (sum.stop) break;
+
+      sumStatus("正在总结「" + groups[g].label + "」（" + (g + 1) + "/" + groups.length +
+        "）…已存 " + sum.sections.length + " 段");
+      sum.done.push(cursor);
+
+      var part = null;
+      try {
+        part = await chatSummary("【" + groups[g].label + "】\n" + groups[g].text, key,
+          { long: true, maxTokens: 6000 });
+      } catch (e) { part = null; }
+
+      if (!part) sum.failed.push(cursor);
+      else {
+        sum.sections.push({
+          idx: cursor,
+          title: part.title || groups[g].label,
+          summary: part.summary || "",
+          points: Array.isArray(part.points) ? part.points : [],
+          formulas: Array.isArray(part.formulas) ? part.formulas : [],
+          quiz: Array.isArray(part.quiz) ? part.quiz : [],
+          image: "",
+          thumb: "",
+          from: groups[g].label
+        });
+      }
+
+      cursor++;
+      showPartial();
+    }
+
+    for (var p = 0; p < photos.length; p++) {
+      if (sum.stop) break;
+
+      var idx = photos[p];
+      sumStatus("正在识别第 " + (idx + 1) + " 张照片…（" + (p + 1) + "/" + photos.length + "）");
+      sum.done.push(cursor);
+
+      var md = "";
+      try { md = await ocrOne(sum.images[idx], key); } catch (e) { md = ""; }
+
+      var sp = null;
+      if (md) {
+        try { sp = await chatSummary("【第 " + (idx + 1) + " 张】\n" + md, key); } catch (e) { sp = null; }
+      }
+
+      if (!sp) sum.failed.push(cursor);
+      else {
+        sum.sections.push({
+          idx: cursor,
+          title: sp.title || ("第 " + (idx + 1) + " 张"),
+          summary: sp.summary || "",
+          points: Array.isArray(sp.points) ? sp.points : [],
+          formulas: Array.isArray(sp.formulas) ? sp.formulas : [],
+          quiz: Array.isArray(sp.quiz) ? sp.quiz : [],
+          image: sum.images[idx] || "",
+          thumb: sum.thumbs[idx] || "",
+          from: ""
+        });
+      }
+
+      cursor++;
+      showPartial();
+    }
+
+    return { total: total, fallback: built.fallback };
+  }
+
   async function runSummary(opts) {
     opts = opts || {};
 
@@ -3118,6 +3391,10 @@
     var total = sum.images.length + sum.texts.length;
     var only = Array.isArray(opts.only) ? opts.only.slice() : null;
 
+    // 选了「每章一节 / 整份一起」而且队列里有文档：先合并再总结
+    var grouped = !only && sum.gran !== "page" &&
+      (sum.texts.length > 0 || Object.keys(sum.docImgs).length > 0);
+
     // 从头跑：清空进度；接着跑/重跑：保留已经跑出来的
     if (!only) {
       sum.sections = [];
@@ -3136,7 +3413,7 @@
       return !sum.sections.some(function (s) { return s.idx === i; });
     });
 
-    if (!todo.length) {
+    if (!todo.length && !grouped) {
       sumStatus("没有要跑的了", "ok");
       return;
     }
@@ -3150,10 +3427,16 @@
     btn.disabled = true;
     if (stopBtn) { stopBtn.hidden = false; stopBtn.disabled = false; }
 
-    // 开跑先把图落一次盘，之后每张只更新进度
-    await saveDraft(true);
-
     try {
+      if (grouped) {
+        var gres = await runDocGrouped(sum.gran, key);
+        total = gres.total;
+        if (gres.fallback) toast("没认出章节标题，就按每 6 页一节合并了");
+      } else {
+
+      // 开跑先把图落一次盘，之后每张只更新进度
+      await saveDraft(true);
+
       for (var k = 0; k < todo.length; k++) {
         if (sum.stop) break;
 
@@ -3221,6 +3504,8 @@
         await saveDraft();
         showPartial();
       }
+
+      }   // ← 分段模式结束
 
       var left = total - sum.done.length;
 

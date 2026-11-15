@@ -1961,7 +1961,37 @@ body {
 .sum-actions .btn { flex: 1; }
 
 /* 导入文档按钮 */
-.sum-docrow { margin-top: 10px; }
+.sum-docrow { margin-top: 10px; display: flex; align-items: center; gap: 8px; }
+.sum-docrow .btn--doc { flex: 1; }
+
+/* 文档分节粒度 */
+.sum-gran {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 0 8px;
+  height: 32px;
+  border-radius: 9px;
+  border: 1px solid rgba(150, 200, 240, 0.28);
+  background: rgba(21, 33, 48, 0.6);
+  font-size: 12px;
+  color: #9cc2e2;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sum-gran:hover { border-color: rgba(150, 200, 240, 0.55); color: #d8ecff; }
+.sum-gran__label { opacity: 0.75; font-size: 11px; }
+.sum-gran select {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding-right: 2px;
+}
+.sum-gran select option { background: #101a26; color: #d8ecff; }
 
 .btn--doc {
   width: 100%;
@@ -2589,6 +2619,11 @@ body {
   #btnWallet { display: inline-flex; padding: 0 8px; }
   #btnSync { display: inline-flex; padding: 0 8px; }
   .sync-pop { right: 8px; width: calc(100vw - 16px); max-width: 320px; }
+
+  /* 窄屏：分节选择器单独占一行，别把导入文档按钮挤扁 */
+  .sum-docrow { flex-wrap: wrap; }
+  .sum-docrow .btn--doc { flex: 1 1 100%; }
+  .sum-gran { flex: 1 1 100%; justify-content: center; height: 34px; }
   .wallet-pop { right: 8px; width: calc(100vw - 16px); max-width: 300px; }
   #btnNew { padding: 0 10px; font-size: 13px; }
   .main { padding: 14px; }

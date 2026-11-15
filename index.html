@@ -165,6 +165,15 @@
             📄 导入文档（PDF / Word / PPT / txt）
           </button>
           <input type="file" id="sumDocInput" accept=".pdf,.docx,.pptx,.txt,.md,application/pdf" multiple hidden />
+
+          <label class="sum-gran" title="文档按什么粒度分节总结">
+            <span class="sum-gran__label">分节</span>
+            <select id="sumGran">
+              <option value="page">每页一节</option>
+              <option value="chapter">每章一节</option>
+              <option value="whole">整份一起</option>
+            </select>
+          </label>
         </div>
 
         <div class="sum-thumbs" id="sumThumbs"></div>
